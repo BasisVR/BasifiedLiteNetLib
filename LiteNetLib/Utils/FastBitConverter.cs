@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -14,7 +14,9 @@ namespace LiteNetLib.Utils
             int size = sizeof(T);
             if (bytes.Length < startIndex + size)
                 ThrowIndexOutOfRangeException();
-#if NETCOREAPP3_1 || NET5_0 || NETCOREAPP3_0_OR_GREATER
+#if NET8_0_OR_GREATER
+            Unsafe.WriteUnaligned(ref bytes[startIndex], value);
+#elif NETCOREAPP3_1 || NET5_0 || NETCOREAPP3_0_OR_GREATER
             Unsafe.As<byte, T>(ref bytes[startIndex]) = value;
 #else
             fixed (byte* ptr = &bytes[startIndex])
@@ -49,6 +51,15 @@ namespace LiteNetLib.Utils
 
         private static void ThrowIndexOutOfRangeException() => throw new IndexOutOfRangeException();
 #else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static unsafe void GetBytes<T>(byte[] data, int position, T value) where T : unmanaged
+        {
+            fixed (byte* ptr = &data[position])
+            {
+                *(T*)ptr = value;
+            }
+        }
+
         [StructLayout(LayoutKind.Explicit)]
         private struct ConverterHelperDouble
         {

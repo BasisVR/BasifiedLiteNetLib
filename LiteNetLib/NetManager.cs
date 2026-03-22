@@ -258,6 +258,12 @@ namespace LiteNetLib
         public bool ReuseAddress = false;
 
         /// <summary>
+        /// Maximum number of fragments allowed per message.
+        /// Default: ushort.MaxValue (65535)
+        /// </summary>
+        public ushort MaxFragmentsCount = ushort.MaxValue;
+
+        /// <summary>
         /// UDP Only Socket Option
         /// Normally IP sockets send packets of data through routers and gateways until they reach the final destination.
         /// If the DontRoute flag is set to True, then data will be delivered on the local subnet only.
