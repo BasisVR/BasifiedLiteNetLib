@@ -1,11 +1,11 @@
-﻿using System;
+using System;
 using System.Net;
 using System.Threading;
 
 namespace LiteNetLib
 {
     //minimal hashset class from dotnet with some optimizations
-    public partial class LiteNetManager
+    public partial class NetManager
     {
         private const int MaxPrimeArrayLength = 0x7FFFFFC3;
         private const int HashPrime = 101;
@@ -55,7 +55,7 @@ namespace LiteNetLib
         {
             internal int HashCode;
             internal int Next;
-            internal LiteNetPeer Value;
+            internal NetPeer Value;
         }
 
         private int[] _buckets;
@@ -63,10 +63,9 @@ namespace LiteNetLib
         private int _count;
         private int _lastIndex;
         private int _freeList = -1;
-        private LiteNetPeer[] _peersArray = new LiteNetPeer[32];
-
-        protected readonly ReaderWriterLockSlim _peersLock = new ReaderWriterLockSlim(LockRecursionPolicy.NoRecursion);
-        protected volatile LiteNetPeer _headPeer;
+        private NetPeer[] _peersArray = new NetPeer[32];
+        private readonly ReaderWriterLockSlim _peersLock = new ReaderWriterLockSlim(LockRecursionPolicy.NoRecursion);
+        private volatile NetPeer _headPeer;
 
         private void ClearPeerSet()
         {
@@ -80,11 +79,11 @@ namespace LiteNetLib
                 _count = 0;
                 _freeList = -1;
             }
-            _peersArray = new LiteNetPeer[32];
+            _peersArray = new NetPeer[32];
             _peersLock.ExitWriteLock();
         }
 
-        protected bool ContainsPeer(LiteNetPeer item)
+        private bool ContainsPeer(NetPeer item)
         {
             if (item == null)
             {
@@ -108,7 +107,7 @@ namespace LiteNetLib
         /// </summary>
         /// <param name="id">id of peer</param>
         /// <returns>Peer if peer with id exist, otherwise null</returns>
-        public LiteNetPeer GetPeerById(int id)
+        public NetPeer GetPeerById(int id)
         {
             return id >= 0 && id < _peersArray.Length ? _peersArray[id] : null;
         }
@@ -119,13 +118,13 @@ namespace LiteNetLib
         /// <param name="id">id of peer</param>
         /// <param name="peer">resulting peer</param>
         /// <returns>True if peer with id exist, otherwise false</returns>
-        public bool TryGetPeerById(int id, out LiteNetPeer peer)
+        public bool TryGetPeerById(int id, out NetPeer peer)
         {
             peer = GetPeerById(id);
             return peer != null;
         }
 
-        private void AddPeer(LiteNetPeer peer)
+        private void AddPeer(NetPeer peer)
         {
             if (peer == null)
             {
@@ -151,7 +150,7 @@ namespace LiteNetLib
             _peersLock.ExitWriteLock();
         }
 
-        private void RemovePeer(LiteNetPeer peer, bool enableWriteLock)
+        private void RemovePeer(NetPeer peer, bool enableWriteLock)
         {
             if(enableWriteLock)
                 _peersLock.EnterWriteLock();
@@ -177,7 +176,7 @@ namespace LiteNetLib
                 _peersLock.ExitWriteLock();
         }
 
-        protected bool RemovePeerFromSet(LiteNetPeer peer)
+        private bool RemovePeerFromSet(NetPeer peer)
         {
             if (_buckets == null || peer == null)
                 return false;
@@ -212,7 +211,7 @@ namespace LiteNetLib
             return false;
         }
 
-        private bool TryGetPeer(IPEndPoint endPoint, out LiteNetPeer actualValue)
+        private bool TryGetPeer(IPEndPoint endPoint, out NetPeer actualValue)
         {
             if (_buckets != null)
             {
@@ -239,7 +238,7 @@ namespace LiteNetLib
         }
 
         //only used for NET8
-        private bool TryGetPeer(SocketAddress saddr, out LiteNetPeer actualValue)
+        private bool TryGetPeer(SocketAddress saddr, out NetPeer actualValue)
         {
             if (_buckets != null)
             {
@@ -260,7 +259,7 @@ namespace LiteNetLib
             return false;
         }
 
-        protected bool AddPeerToSet(LiteNetPeer value)
+        private bool AddPeerToSet(NetPeer value)
         {
             if (_buckets == null)
             {

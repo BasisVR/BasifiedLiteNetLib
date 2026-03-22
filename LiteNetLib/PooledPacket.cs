@@ -23,7 +23,7 @@
         internal PooledPacket(NetPacket packet, int maxDataSize, byte channelNumber)
         {
             _packet = packet;
-            UserDataOffset = _packet.HeaderSize;
+            UserDataOffset = _packet.GetHeaderSize();
             _packet.Size = UserDataOffset;
             MaxUserDataSize = maxDataSize - UserDataOffset;
             _channelNumber = channelNumber;

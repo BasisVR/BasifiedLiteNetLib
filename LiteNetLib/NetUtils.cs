@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
@@ -25,8 +25,10 @@ namespace LiteNetLib
     {
         private static readonly NetworkSorter NetworkSorter = new NetworkSorter();
 
-        public static IPEndPoint MakeEndPoint(string hostStr, int port) =>
-            new IPEndPoint(ResolveAddress(hostStr), port);
+        public static IPEndPoint MakeEndPoint(string hostStr, int port)
+        {
+            return new IPEndPoint(ResolveAddress(hostStr), port);
+        }
 
         public static IPAddress ResolveAddress(string hostStr)
         {
@@ -35,7 +37,7 @@ namespace LiteNetLib
 
             if (!IPAddress.TryParse(hostStr, out var ipAddress))
             {
-                if (LiteNetManager.IPv6Support)
+                if (NetManager.IPv6Support)
                     ipAddress = ResolveAddress(hostStr, AddressFamily.InterNetworkV6);
                 if (ipAddress == null)
                     ipAddress = ResolveAddress(hostStr, AddressFamily.InterNetwork);
@@ -156,7 +158,7 @@ namespace LiteNetLib
         // ===========================================
         internal static void PrintInterfaceInfos()
         {
-            NetDebug.WriteForce(NetLogLevel.Info, $"IPv6Support: { LiteNetManager.IPv6Support}");
+            //NetDebug.WriteForce(NetLogLevel.Info, $"IPv6Support: { NetManager.IPv6Support}");
             try
             {
                 foreach (NetworkInterface ni in NetworkInterface.GetAllNetworkInterfaces())
@@ -166,21 +168,21 @@ namespace LiteNetLib
                         if (ip.Address.AddressFamily == AddressFamily.InterNetwork ||
                             ip.Address.AddressFamily == AddressFamily.InterNetworkV6)
                         {
-                            NetDebug.WriteForce(
-                                NetLogLevel.Info,
-                                $"Interface: {ni.Name}, Type: {ni.NetworkInterfaceType}, Ip: {ip.Address}, OpStatus: {ni.OperationalStatus}");
+                            //NetDebug.WriteForce(NetLogLevel.Info,$"Interface: {ni.Name}, Type: {ni.NetworkInterfaceType}, Ip: {ip.Address}, OpStatus: {ni.OperationalStatus}");
                         }
                     }
                 }
             }
             catch (Exception e)
             {
-                NetDebug.WriteForce(NetLogLevel.Info, $"Error while getting interface infos: {e}");
+                //NetDebug.WriteForce(NetLogLevel.Info, $"Error while getting interface infos: {e}");
             }
         }
 
-        internal static int RelativeSequenceNumber(int number, int expected) =>
-            (number - expected + NetConstants.MaxSequence + NetConstants.HalfMaxSequence) % NetConstants.MaxSequence - NetConstants.HalfMaxSequence;
+        internal static int RelativeSequenceNumber(int number, int expected)
+        {
+            return (number - expected + NetConstants.MaxSequence + NetConstants.HalfMaxSequence) % NetConstants.MaxSequence - NetConstants.HalfMaxSequence;
+        }
 
         internal static T[] AllocatePinnedUninitializedArray<T>(int count) where T : unmanaged
         {

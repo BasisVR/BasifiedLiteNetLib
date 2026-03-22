@@ -1,8 +1,8 @@
-﻿using System;
+using System;
 
 namespace LiteNetLib
 {
-    public partial class LiteNetManager
+    public partial class NetManager
     {
         private NetPacket _poolHead;
         private int _poolCount;

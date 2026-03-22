@@ -1,8 +1,8 @@
-﻿using System;
+using System;
 using System.Net;
-using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Threading;
 
 namespace LiteNetLib.Utils
 {
@@ -28,14 +28,20 @@ namespace LiteNetLib.Utils
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => _position;
         }
+        public ReadOnlySpan<byte> AsReadOnlySpan()
+        {
+            return new ReadOnlySpan<byte>(_data, 0, _position);
+        }
 
-        public ReadOnlySpan<byte> AsReadOnlySpan() => new ReadOnlySpan<byte>(_data, 0, _position);
+        public static readonly ThreadLocal<UTF8Encoding> uTF8Encoding = new ThreadLocal<UTF8Encoding>(() => new UTF8Encoding(false, true));
 
-        internal static readonly UTF8Encoding uTF8Encoding = new UTF8Encoding(false, true);
+        public NetDataWriter() : this(true, InitialSize)
+        {
+        }
 
-        public NetDataWriter() : this(true, InitialSize) { }
-
-        public NetDataWriter(bool autoResize) : this(autoResize, InitialSize) { }
+        public NetDataWriter(bool autoResize) : this(autoResize, InitialSize)
+        {
+        }
 
         public NetDataWriter(bool autoResize, int initialSize)
         {
@@ -71,7 +77,6 @@ namespace LiteNetLib.Utils
             netDataWriter.Put(bytes, offset, length);
             return netDataWriter;
         }
-
         /// <summary>
         /// Creates NetDataWriter from the given <paramref name="bytes"/>.
         /// </summary>
@@ -81,7 +86,6 @@ namespace LiteNetLib.Utils
             netDataWriter.Put(bytes);
             return netDataWriter;
         }
-
         public static NetDataWriter FromString(string value)
         {
             var netDataWriter = new NetDataWriter();
@@ -113,7 +117,10 @@ namespace LiteNetLib.Utils
             _position = 0;
         }
 
-        public void Reset() => _position = 0;
+        public void Reset()
+        {
+            _position = 0;
+        }
 
         public byte[] CopyData()
         {
@@ -182,7 +189,10 @@ namespace LiteNetLib.Utils
             _position += 4;
         }
 
-        public void Put(char value) => Put((ushort)value);
+        public void Put(char value)
+        {
+            Put((ushort)value);
+        }
 
         public void Put(ushort value)
         {
@@ -239,7 +249,6 @@ namespace LiteNetLib.Utils
             Buffer.BlockCopy(data, 0, _data, _position, data.Length);
             _position += data.Length;
         }
-
         public void Put(ReadOnlySpan<byte> data)
         {
             if (_autoResize)
@@ -247,7 +256,6 @@ namespace LiteNetLib.Utils
             data.CopyTo(_data.AsSpan(_position));
             _position += data.Length;
         }
-
         public void PutSBytesWithLength(sbyte[] data, int offset, ushort length)
         {
             if (_autoResize)
@@ -257,7 +265,10 @@ namespace LiteNetLib.Utils
             _position += 2 + length;
         }
 
-        public void PutSBytesWithLength(sbyte[] data) => PutArray(data, 1);
+        public void PutSBytesWithLength(sbyte[] data)
+        {
+            PutArray(data, 1);
+        }
 
         public void PutBytesWithLength(byte[] data, int offset, ushort length)
         {
@@ -268,9 +279,15 @@ namespace LiteNetLib.Utils
             _position += 2 + length;
         }
 
-        public void PutBytesWithLength(byte[] data) => PutArray(data, 1);
+        public void PutBytesWithLength(byte[] data)
+        {
+            PutArray(data, 1);
+        }
 
-        public void Put(bool value) => Put((byte)(value ? 1 : 0));
+        public void Put(bool value)
+        {
+            Put((byte)(value ? 1 : 0));
+        }
 
         public void PutArray(Array arr, int sz)
         {
@@ -284,15 +301,50 @@ namespace LiteNetLib.Utils
             _position += sz + 2;
         }
 
-        public void PutArray(float[] value) => PutArray(value, 4);
-        public void PutArray(double[] value) => PutArray(value, 8);
-        public void PutArray(long[] value) => PutArray(value, 8);
-        public void PutArray(ulong[] value) => PutArray(value, 8);
-        public void PutArray(int[] value) => PutArray(value, 4);
-        public void PutArray(uint[] value) => PutArray(value, 4);
-        public void PutArray(ushort[] value) => PutArray(value, 2);
-        public void PutArray(short[] value) => PutArray(value, 2);
-        public void PutArray(bool[] value) => PutArray(value, 1);
+        public void PutArray(float[] value)
+        {
+            PutArray(value, 4);
+        }
+
+        public void PutArray(double[] value)
+        {
+            PutArray(value, 8);
+        }
+
+        public void PutArray(long[] value)
+        {
+            PutArray(value, 8);
+        }
+
+        public void PutArray(ulong[] value)
+        {
+            PutArray(value, 8);
+        }
+
+        public void PutArray(int[] value)
+        {
+            PutArray(value, 4);
+        }
+
+        public void PutArray(uint[] value)
+        {
+            PutArray(value, 4);
+        }
+
+        public void PutArray(ushort[] value)
+        {
+            PutArray(value, 2);
+        }
+
+        public void PutArray(short[] value)
+        {
+            PutArray(value, 2);
+        }
+
+        public void PutArray(bool[] value)
+        {
+            PutArray(value, 1);
+        }
 
         public void PutArray(string[] value)
         {
@@ -320,21 +372,8 @@ namespace LiteNetLib.Utils
 
         public void Put(IPEndPoint endPoint)
         {
-            if (endPoint.AddressFamily == AddressFamily.InterNetwork)
-            {
-                Put((byte)0);
-            }
-            else if (endPoint.AddressFamily == AddressFamily.InterNetworkV6)
-            {
-                Put((byte)1);
-            }
-            else
-            {
-                throw new ArgumentException("Unsupported address family: " + endPoint.AddressFamily);
-            }
-
-            Put(endPoint.Address.GetAddressBytes());
-            Put((ushort)endPoint.Port);
+            Put(endPoint.Address.ToString());
+            Put(endPoint.Port);
         }
 
         public void PutLargeString(string value)
@@ -344,7 +383,7 @@ namespace LiteNetLib.Utils
                 Put(0);
                 return;
             }
-            int size = uTF8Encoding.GetByteCount(value);
+            int size = uTF8Encoding.Value.GetByteCount(value);
             if (size == 0)
             {
                 Put(0);
@@ -353,14 +392,19 @@ namespace LiteNetLib.Utils
             Put(size);
             if (_autoResize)
                 ResizeIfNeed(_position + size);
-            uTF8Encoding.GetBytes(value, 0, size, _data, _position);
+            uTF8Encoding.Value.GetBytes(value, 0, size, _data, _position);
             _position += size;
+        }
+
+        public void Put(string value)
+        {
+            Put(value, 0);
         }
 
         /// <summary>
         /// Note that "maxLength" only limits the number of characters in a string, not its size in bytes.
         /// </summary>
-        public void Put(string value, int maxLength = 0)
+        public void Put(string value, int maxLength)
         {
             if (string.IsNullOrEmpty(value))
             {
@@ -369,10 +413,10 @@ namespace LiteNetLib.Utils
             }
 
             int length = maxLength > 0 && value.Length > maxLength ? maxLength : value.Length;
-            int maxSize = uTF8Encoding.GetMaxByteCount(length);
+            int maxSize = uTF8Encoding.Value.GetMaxByteCount(length);
             if (_autoResize)
                 ResizeIfNeed(_position + maxSize + sizeof(ushort));
-            int size = uTF8Encoding.GetBytes(value, 0, length, _data, _position + sizeof(ushort));
+            int size = uTF8Encoding.Value.GetBytes(value, 0, length, _data, _position + sizeof(ushort));
             if (size == 0)
             {
                 Put((ushort)0);
@@ -382,6 +426,9 @@ namespace LiteNetLib.Utils
             _position += size;
         }
 
-        public void Put<T>(T obj) where T : INetSerializable => obj.Serialize(this);
+        public void Put<T>(T obj) where T : INetSerializable
+        {
+            obj.Serialize(this);
+        }
     }
 }

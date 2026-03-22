@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 
 namespace LiteNetLib
 {
@@ -13,7 +14,7 @@ namespace LiteNetLib
         private readonly byte _id;
         private long _lastPacketSendTime;
 
-        public SequencedChannel(LiteNetPeer peer, bool reliable, byte id) : base(peer)
+        public SequencedChannel(NetPeer peer, bool reliable, byte id) : base(peer)
         {
             _id = id;
             _reliable = reliable;
@@ -21,18 +22,18 @@ namespace LiteNetLib
                 _ackPacket = new NetPacket(PacketProperty.Ack, 0) {ChannelId = id};
         }
 
-        public override bool SendNextPackets()
+        protected override bool SendNextPackets()
         {
             if (_reliable && OutgoingQueue.Count == 0)
             {
-                long currentTime = DateTime.UtcNow.Ticks;
+                long currentTime = Stopwatch.GetTimestamp();
                 long packetHoldTime = currentTime - _lastPacketSendTime;
-                if (packetHoldTime >= Peer.ResendDelay * TimeSpan.TicksPerMillisecond)
+                if (packetHoldTime >= Peer.ResendDelay * (Stopwatch.Frequency / 1000.0))
                 {
                     var packet = _lastPacket;
                     if (packet != null)
                     {
-                        _lastPacketSendTime = currentTime;
+                        _lastPacketSendTime = Stopwatch.GetTimestamp();
                         Peer.SendUserData(packet);
                     }
                 }

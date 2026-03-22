@@ -1,4 +1,4 @@
-﻿#if UNITY_2018_3_OR_NEWER
+#if UNITY_2018_3_OR_NEWER
 #define UNITY_SOCKET_FIX
 #endif
 using System.Runtime.InteropServices;
@@ -11,9 +11,9 @@ using LiteNetLib.Utils;
 
 namespace LiteNetLib
 {
-    public partial class LiteNetManager
+    public partial class NetManager
     {
-        protected Socket _udpSocketv4;
+        private Socket _udpSocketv4;
         private Socket _udpSocketv6;
         private Thread _receiveThread;
         private IPEndPoint _bufferEndPointv4;
@@ -58,7 +58,7 @@ namespace LiteNetLib
             }
         }
 
-        static LiteNetManager()
+        static NetManager()
         {
 #if DISABLE_IPV6
             IPv6Support = false;
@@ -86,7 +86,7 @@ namespace LiteNetLib
                 case SocketError.TimedOut:
                 case SocketError.NetworkReset:
                 case SocketError.WouldBlock:
-                    //NetDebug.Write($"[R]Ignored error: {(int)ex.SocketErrorCode} - {ex}");
+                    ////NetDebug.Write($"[R]Ignored error: {(int)ex.SocketErrorCode} - {ex}");
                     break;
                 default:
                     NetDebug.WriteError($"[R]Error code: {(int)ex.SocketErrorCode} - {ex}");
@@ -96,14 +96,19 @@ namespace LiteNetLib
             return false;
         }
 
-        private void ManualReceive(Socket socket, EndPoint bufferEndPoint)
+        private void ManualReceive(Socket socket, EndPoint bufferEndPoint, int maxReceive)
         {
             //Reading data
             try
             {
-                int available = socket.Available;
-                while (available > 0)
-                    available -= ReceiveFrom(socket, ref bufferEndPoint);
+                int packetsReceived = 0;
+                while (socket.Available > 0)
+                {
+                    ReceiveFrom(socket, ref bufferEndPoint);
+                    packetsReceived++;
+                    if (packetsReceived == maxReceive)
+                        break;
+                }
             }
             catch (SocketException ex)
             {
@@ -201,7 +206,7 @@ namespace LiteNetLib
                     return ProcessError(new SocketException((int)NativeSocket.GetSocketError())) == false;
                 }
 
-                //NetDebug.WriteForce($"[R]Received data from {endPoint}, result: {packet.Size}");
+                ////NetDebug.WriteForce($"[R]Received data from {endPoint}, result: {packet.Size}");
                 //refresh temp Addr/Port
                 short family = (short)((address[1] << 8) | address[0]);
                 tempEndPoint.Port = (ushort)((address[2] << 8) | address[3]);
@@ -212,7 +217,13 @@ namespace LiteNetLib
                         (address[26] << 16) +
                         (address[25] << 8) +
                         (address[24])));
+#if NETCOREAPP || NETSTANDARD2_1 || NETSTANDARD2_1_OR_GREATER
                     tempEndPoint.Address = new IPAddress(new ReadOnlySpan<byte>(address, 8, 16), scope);
+#else
+                    byte[] addrBuffer = new byte[16];
+                    Buffer.BlockCopy(address, 8, addrBuffer, 0, 16);
+                    tempEndPoint.Address = new IPAddress(addrBuffer, scope);
+#endif
                 }
                 else //IPv4
                 {
@@ -238,18 +249,17 @@ namespace LiteNetLib
             }
         }
 
-        private int ReceiveFrom(Socket s, ref EndPoint bufferEndPoint)
+        private void ReceiveFrom(Socket s, ref EndPoint bufferEndPoint)
         {
             var packet = PoolGetPacket(NetConstants.MaxPacketSize);
 #if NET8_0_OR_GREATER
             var sockAddr = s.AddressFamily == AddressFamily.InterNetwork ? _sockAddrCacheV4 : _sockAddrCacheV6;
-            packet.Size = s.ReceiveFrom(new Span<byte>(packet.RawData, 0, NetConstants.MaxPacketSize), SocketFlags.None, sockAddr);
+            packet.Size = s.ReceiveFrom(packet, SocketFlags.None, sockAddr);
             OnMessageReceived(packet, TryGetPeer(sockAddr, out var peer) ? peer : (IPEndPoint)bufferEndPoint.Create(sockAddr));
 #else
             packet.Size = s.ReceiveFrom(packet.RawData, 0, NetConstants.MaxPacketSize, SocketFlags.None, ref bufferEndPoint);
             OnMessageReceived(packet, (IPEndPoint)bufferEndPoint);
 #endif
-            return packet.Size;
         }
 
         private void ReceiveLogic()
@@ -294,7 +304,7 @@ namespace LiteNetLib
                         selectReadList.Add(socketV6);
                         Socket.Select(selectReadList, null, null, ReceivePollingTime);
                     }
-                    //NetDebug.Write(NetLogLevel.Trace, $"[R]Received data from {bufferEndPoint}, result: {packet.Size}");
+                    ////NetDebug.Write(NetLogLevel.Trace, $"[R]Received data from {bufferEndPoint}, result: {packet.Size}");
                 }
                 catch (SocketException ex)
                 {
@@ -423,10 +433,13 @@ namespace LiteNetLib
             {
                 Ttl = NetConstants.SocketTTL;
 
-                try { socket.EnableBroadcast = true; }
-                catch (SocketException e)
+                if (BroadcastReceiveEnabled)
                 {
-                    NetDebug.WriteError($"[B]Broadcast error: {e.SocketErrorCode}");
+                    try { socket.EnableBroadcast = true; }
+                    catch (SocketException e)
+                    {
+                        NetDebug.WriteError($"[B]Broadcast error: {e.SocketErrorCode}");
+                    }
                 }
 
                 if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
@@ -442,10 +455,10 @@ namespace LiteNetLib
             try
             {
                 socket.Bind(ep);
-                NetDebug.Write(NetLogLevel.Trace, $"[B]Successfully binded to port: {((IPEndPoint)socket.LocalEndPoint).Port}, AF: {socket.AddressFamily}");
+                //NetDebug.Write(NetLogLevel.Trace, $"[B]Successfully binded to port: {((IPEndPoint)socket.LocalEndPoint).Port}, AF: {socket.AddressFamily}");
 
-                //join multicast
-                if (ep.AddressFamily == AddressFamily.InterNetworkV6)
+                //join multicast (only needed when broadcast receive is enabled)
+                if (BroadcastReceiveEnabled && ep.AddressFamily == AddressFamily.InterNetworkV6)
                 {
                     try
                     {
@@ -502,8 +515,10 @@ namespace LiteNetLib
             return result;
         }
 
-        internal int SendRaw(NetPacket packet, IPEndPoint remoteEndPoint) =>
-            SendRaw(packet.RawData, 0, packet.Size, remoteEndPoint);
+        internal int SendRaw(NetPacket packet, IPEndPoint remoteEndPoint)
+        {
+            return SendRaw(packet.RawData, 0, packet.Size, remoteEndPoint);
+        }
 
         internal int SendRaw(byte[] message, int start, int length, IPEndPoint remoteEndPoint)
         {
@@ -520,44 +535,6 @@ namespace LiteNetLib
                 message = expandedPacket.RawData;
             }
 
-#if DEBUG || SIMULATE_NETWORK
-            if (HandleSimulateOutboundPacketLoss())
-            {
-                if (expandedPacket != null)
-                    PoolRecycle(expandedPacket);
-                return 0; // Simulate successful send to avoid triggering error handling
-            }
-
-            if (HandleSimulateOutboundLatency(message, start, length, remoteEndPoint))
-            {
-                if (expandedPacket != null)
-                    PoolRecycle(expandedPacket);
-                return length; // Simulate successful send
-            }
-#endif
-
-            return SendRawCoreWithCleanup(message, start, length, remoteEndPoint, expandedPacket);
-        }
-
-        private int SendRawCoreWithCleanup(byte[] message, int start, int length, IPEndPoint remoteEndPoint, NetPacket expandedPacket)
-        {
-            try
-            {
-                return SendRawCore(message, start, length, remoteEndPoint);
-            }
-            finally
-            {
-                if (expandedPacket != null)
-                    PoolRecycle(expandedPacket);
-            }
-        }
-
-        // Core socket sending logic without simulation - used by both SendRaw and delayed packet processing
-        internal int SendRawCore(byte[] message, int start, int length, IPEndPoint remoteEndPoint)
-        {
-            if (!_isRunning)
-                return 0;
-
             var socket = _udpSocketv4;
             if (remoteEndPoint.AddressFamily == AddressFamily.InterNetworkV6 && IPv6Support)
             {
@@ -569,7 +546,7 @@ namespace LiteNetLib
             int result;
             try
             {
-                if (UseNativeSockets && remoteEndPoint is LiteNetPeer peer)
+                if (UseNativeSockets && remoteEndPoint is NetPeer peer)
                 {
                     unsafe
                     {
@@ -587,7 +564,7 @@ namespace LiteNetLib
                     result = socket.SendTo(message, start, length, SocketFlags.None, remoteEndPoint);
 #endif
                 }
-                //NetDebug.WriteForce("[S]Send packet to {0}, result: {1}", remoteEndPoint, result);
+                ////NetDebug.WriteForce("[S]Send packet to {0}, result: {1}", remoteEndPoint, result);
             }
             catch (SocketException ex)
             {
@@ -597,12 +574,12 @@ namespace LiteNetLib
                     case SocketError.Interrupted:
                         return 0;
                     case SocketError.MessageSize:
-                        NetDebug.Write(NetLogLevel.Trace, $"[SRD] 10040, datalen: {length}");
+                        //NetDebug.Write(NetLogLevel.Trace, $"[SRD] 10040, datalen: {length}");
                         return 0;
 
                     case SocketError.HostUnreachable:
                     case SocketError.NetworkUnreachable:
-                        if (DisconnectOnUnreachable && remoteEndPoint is LiteNetPeer peer)
+                        if (DisconnectOnUnreachable && remoteEndPoint is NetPeer peer)
                         {
                             DisconnectPeerForce(
                                 peer,
@@ -630,6 +607,11 @@ namespace LiteNetLib
                 NetDebug.WriteError($"[S] {ex}");
                 return 0;
             }
+            finally
+            {
+                if (expandedPacket != null)
+                    PoolRecycle(expandedPacket);
+            }
 
             if (result <= 0)
                 return 0;
@@ -643,11 +625,15 @@ namespace LiteNetLib
             return result;
         }
 
-        public bool SendBroadcast(NetDataWriter writer, int port) =>
-            SendBroadcast(writer.Data, 0, writer.Length, port);
+        public bool SendBroadcast(NetDataWriter writer, int port)
+        {
+            return SendBroadcast(writer.Data, 0, writer.Length, port);
+        }
 
-        public bool SendBroadcast(byte[] data, int port) =>
-            SendBroadcast(data, 0, data.Length, port);
+        public bool SendBroadcast(byte[] data, int port)
+        {
+            return SendBroadcast(data, 0, data.Length, port);
+        }
 
         public bool SendBroadcast(byte[] data, int start, int length, int port)
         {

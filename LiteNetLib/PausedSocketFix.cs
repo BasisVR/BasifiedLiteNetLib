@@ -1,4 +1,4 @@
-﻿#if UNITY_2018_3_OR_NEWER
+#if UNITY_2018_3_OR_NEWER
 using System.Net;
 using UnityEngine;
 
@@ -6,14 +6,14 @@ namespace LiteNetLib
 {
     public class PausedSocketFix
     {
-        private readonly LiteNetManager _netManager;
+        private readonly NetManager _netManager;
         private readonly IPAddress _ipv4;
         private readonly IPAddress _ipv6;
         private readonly int _port;
         private readonly bool _manualMode;
         private bool _initialized;
 
-        public PausedSocketFix(LiteNetManager netManager, IPAddress ipv4, IPAddress ipv6, int port, bool manualMode)
+        public PausedSocketFix(NetManager netManager, IPAddress ipv4, IPAddress ipv6, int port, bool manualMode)
         {
             _netManager = netManager;
             _ipv4 = ipv4;
